@@ -66,3 +66,8 @@ dart-web-app/
 
 - 비상장회사는 재무제표/최대주주/임원 정보가 제공되지 않을 수 있습니다.
 - 재무제표는 정기보고서 제출 후 일정 시간 뒤에 반영됩니다.
+
+## 자동 배포
+
+이 리포지토리는 Vercel과 연결되어 있어 `main` 브랜치에 푸시 시 자동 재배포됩니다.
+- Production: https://dart-disclosure.vercel.app
