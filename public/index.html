@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>DART 기업공시정보 조회</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --border: #e5e7eb;
+    --bg: #f8fafc;
+    --text: #1f2937;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  header {
+    background: linear-gradient(135deg, #1e40af, #2563eb);
+    color: white; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  header h1 { margin: 0; font-size: 22px; }
+  header p { margin: 4px 0 0; opacity: 0.85; font-size: 13px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
+  .search-box input {
+    flex: 1; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 15px; outline: none;
+  }
+  .search-box input:focus { border-color: var(--primary); }
+  .search-box button {
+    padding: 12px 22px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 500;
+  }
+  .search-box button:hover { background: var(--primary-dark); }
+  .results { background: white; border-radius: 12px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .corp-item {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .corp-item:last-child { border-bottom: none; }
+  .corp-item:hover { background: #f1f5f9; }
+  .corp-item .name { font-weight: 600; }
+  .corp-item .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    background: #dbeafe; color: var(--primary-dark); font-size: 11px; font-weight: 500;
+  }
+  .badge.unlisted { background: #f3f4f6; color: var(--muted); }
+  .tabs {
+    display: flex; gap: 4px; margin: 24px 0 12px; border-bottom: 2px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab {
+    padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; font-size: 14px; white-space: nowrap; color: var(--muted);
+  }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .panel {
+    background: white; border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); min-height: 200px;
+  }
+  .panel-controls {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  .panel-controls select, .panel-controls input {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;
+  }
+  .panel-controls button {
+    padding: 8px 16px; background: var(--primary); color: white;
+    border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: #f8fafc; font-weight: 600; color: var(--muted); font-size: 12px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .error { padding: 16px; background: #fef2f2; color: #b91c1c; border-radius: 8px; }
+  .info-grid {
+    display: grid; grid-template-columns: 160px 1fr; gap: 12px; font-size: 14px;
+  }
+  .info-grid dt { color: var(--muted); font-weight: 500; }
+  .info-grid dd { margin: 0; }
+  .selected-corp {
+    background: white; padding: 16px 20px; border-radius: 12px;
+    margin-top: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .selected-corp h2 { margin: 0 0 4px; font-size: 18px; }
+  .selected-corp .sub { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 DART 기업공시정보 조회</h1>
+  <p>금융감독원 전자공시시스템(DART) OpenAPI 기반</p>
+</header>
+
+<div class="container">
+  <div class="search-box">
+    <input id="searchInput" placeholder="회사명을 입력하세요 (예: 삼성전자, 코웨이, 한우물)" />
+    <button onclick="searchCompany()">검색</button>
+  </div>
+
+  <div id="searchResults" class="results" style="display:none;"></div>
+
+  <div id="selectedCorp" class="selected-corp" style="display:none;">
+    <h2 id="corpName"></h2>
+    <div class="sub" id="corpMeta"></div>
+  </div>
+
+  <div id="tabs" class="tabs" style="display:none;">
+    <div class="tab active" data-tab="info">기업개황</div>
+    <div class="tab" data-tab="disclosures">공시목록</div>
+    <div class="tab" data-tab="financials">재무제표</div>
+    <div class="tab" data-tab="shareholders">최대주주</div>
+    <div class="tab" data-tab="executives">임원현황</div>
+  </div>
+
+  <div id="panel" class="panel" style="display:none;"></div>
+</div>
+
+<script>
+let currentCorp = null;
+let currentTab = "info";
+
+const $ = (id) => document.getElementById(id);
+
+$("searchInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") searchCompany();
+});
+
+async function searchCompany() {
+  const q = $("searchInput").value.trim();
+  if (!q) return;
+  const box = $("searchResults");
+  box.style.display = "block";
+  box.innerHTML = '<div class="loading">검색 중...</div>';
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const data = await r.json();
+    if (!data.results || data.results.length === 0) {
+      box.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+      return;
+    }
+    box.innerHTML = data.results.map((c) => `
+      <div class="corp-item" onclick='selectCorp(${JSON.stringify(c).replace(/'/g, "&#39;")})'>
+        <div>
+          <div class="name">${c.corp_name}</div>
+          <div class="meta">고유번호: ${c.corp_code} · 최종수정 ${c.modify_date}</div>
+        </div>
+        <span class="badge ${c.stock_code ? "" : "unlisted"}">
+          ${c.stock_code ? c.stock_code : "비상장"}
+        </span>
+      </div>
+    `).join("");
+  } catch (e) {
+    box.innerHTML = `<div class="error">${e.message}</div>`;
+  }
+}
+
+function selectCorp(corp) {
+  currentCorp = corp;
+  $("searchResults").style.display = "none";
+  $("selectedCorp").style.display = "block";
+  $("corpName").textContent = corp.corp_name;
+  $("corpMeta").textContent = `고유번호 ${corp.corp_code}` + (corp.stock_code ? ` · 종목코드 ${corp.stock_code}` : " · 비상장");
+  $("tabs").style.display = "flex";
+  $("panel").style.display = "block";
+  loadTab("info");
+}
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    loadTab(tab.dataset.tab);
+  });
+});
+
+async function loadTab(name) {
+  currentTab = name;
+  const panel = $("panel");
+  panel.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    if (name === "info") await renderInfo(panel);
+    else if (name === "disclosures") await renderDisclosures(panel);
+    else if (name === "financials") renderFinancialsControls(panel);
+    else if (name === "shareholders") renderShareholdersControls(panel);
+    else if (name === "executives") renderExecutivesControls(panel);
+  } catch (e) {
+    panel.innerHTML = `<div class="error">${e.message}</div>`;
+  }
+}
+
+async function renderInfo(panel) {
+  const r = await fetch(`/api/company/${currentCorp.corp_code}`);
+  const d = await r.json();
+  if (d.error) { panel.innerHTML = `<div class="error">${d.error}</div>`; return; }
+  const f = (k, def="-") => d[k] || def;
+  panel.innerHTML = `
+    <dl class="info-grid">
+      <dt>영문명</dt><dd>${f("corp_name_eng")}</dd>
+      <dt>종목명</dt><dd>${f("stock_name")}</dd>
+      <dt>종목코드</dt><dd>${f("stock_code")}</dd>
+      <dt>대표자명</dt><dd>${f("ceo_nm")}</dd>
+      <dt>법인구분</dt><dd>${f("corp_cls")}</dd>
+      <dt>법인등록번호</dt><dd>${f("jurir_no")}</dd>
+      <dt>사업자등록번호</dt><dd>${f("bizr_no")}</dd>
+      <dt>주소</dt><dd>${f("adres")}</dd>
+      <dt>홈페이지</dt><dd>${d.hm_url ? `<a href="${d.hm_url}" target="_blank">${d.hm_url}</a>` : "-"}</dd>
+      <dt>IR홈페이지</dt><dd>${d.ir_url ? `<a href="${d.ir_url}" target="_blank">${d.ir_url}</a>` : "-"}</dd>
+      <dt>전화번호</dt><dd>${f("phn_no")}</dd>
+      <dt>팩스번호</dt><dd>${f("fax_no")}</dd>
+      <dt>업종코드</dt><dd>${f("induty_code")}</dd>
+      <dt>설립일</dt><dd>${f("est_dt")}</dd>
+      <dt>결산월</dt><dd>${f("acc_mt")}월</dd>
+    </dl>
+  `;
+}
+
+async function renderDisclosures(panel) {
+  const today = new Date();
+  const end = ymd(today);
+  const start = ymd(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()));
+  panel.innerHTML = `
+    <div class="panel-controls">
+      <label>기간 <input type="date" id="dStart" value="${dateInput(start)}"> ~
+        <input type="date" id="dEnd" value="${dateInput(end)}"></label>
+      <select id="dType">
+        <option value="">전체</option>
+        <option value="A">정기공시</option>
+        <option value="B">주요사항보고</option>
+        <option value="C">발행공시</option>
+        <option value="D">지분공시</option>
+        <option value="E">기타공시</option>
+        <option value="F">외부감사관련</option>
+        <option value="I">거래소공시</option>
+      </select>
+      <button onclick="fetchDisclosures()">조회</button>
+    </div>
+    <div id="dList"><div class="loading">불러오는 중...</div></div>
+  `;
+  fetchDisclosures();
+}
+
+async function fetchDisclosures() {
+  const list = $("dList");
+  list.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const params = new URLSearchParams({
+    start_date: ($("dStart").value || "").replace(/-/g, ""),
+    end_date: ($("dEnd").value || "").replace(/-/g, ""),
+    page_count: 50,
+  });
+  const t = $("dType").value;
+  if (t) params.append("disclosure_type", t);
+  const r = await fetch(`/api/disclosures/${currentCorp.corp_code}?${params}`);
+  const d = await r.json();
+  if (d.error) { list.innerHTML = `<div class="error">${d.error}</div>`; return; }
+  const items = d.list || [];
+  if (!items.length) { list.innerHTML = '<div class="empty">해당 기간 공시가 없습니다.</div>'; return; }
+  list.innerHTML = `
+    <table>
+      <thead><tr><th>접수일</th><th>보고서명</th><th>제출인</th><th>비고</th><th>원문</th></tr></thead>
+      <tbody>
+        ${items.map(it => `
+          <tr>
+            <td>${it.rcept_dt}</td>
+            <td>${it.report_nm.trim()}</td>
+            <td>${it.flr_nm || "-"}</td>
+            <td>${it.rm || ""}</td>
+            <td><a href="https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${it.rcept_no}" target="_blank">보기</a></td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function reportTypeSelect(id) {
+  return `
+    <select id="${id}">
+      <option value="11011">사업보고서</option>
+      <option value="11012">반기보고서</option>
+      <option value="11013">1분기보고서</option>
+      <option value="11014">3분기보고서</option>
+    </select>
+  `;
+}
+
+function yearSelect(id) {
+  const y = new Date().getFullYear();
+  let opts = "";
+  for (let i = y; i >= y - 10; i--) {
+    opts += `<option value="${i}" ${i === y - 1 ? "selected" : ""}>${i}년</option>`;
+  }
+  return `<select id="${id}">${opts}</select>`;
+}
+
+function renderFinancialsControls(panel) {
+  panel.innerHTML = `
+    <div class="panel-controls">
+      ${yearSelect("fYear")} ${reportTypeSelect("fReport")}
+      <select id="fType">
+        <option value="OFS">개별</option>
+        <option value="CFS">연결</option>
+      </select>
+      <button onclick="fetchFinancials()">조회</button>
+    </div>
+    <div id="fBody"><div class="empty">조회 버튼을 눌러주세요.</div></div>
+  `;
+}
+
+async function fetchFinancials() {
+  const body = $("fBody");
+  body.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const params = new URLSearchParams({
+    year: $("fYear").value,
+    report_type: $("fReport").value,
+    fs_type: $("fType").value,
+  });
+  const r = await fetch(`/api/financials/${currentCorp.corp_code}?${params}`);
+  const d = await r.json();
+  if (d.error) { body.innerHTML = `<div class="error">${d.error}</div>`; return; }
+  const items = d.list || [];
+  const keys = ["자산총계", "부채총계", "자본총계", "유동자산", "비유동자산", "유동부채", "비유동부채",
+                "매출액", "영업이익", "법인세차감전 순이익", "당기순이익"];
+  const filtered = items.filter(it => keys.includes((it.account_nm || "").trim()));
+  if (!filtered.length) { body.innerHTML = '<div class="empty">재무 정보가 없습니다.</div>'; return; }
+  const fmt = (v) => v ? Number(v).toLocaleString() : "-";
+  body.innerHTML = `
+    <table>
+      <thead><tr><th>구분</th><th>계정</th><th class="num">당기</th><th class="num">전기</th><th class="num">전전기</th></tr></thead>
+      <tbody>
+        ${filtered.map(it => `
+          <tr>
+            <td>${it.sj_nm || ""}</td>
+            <td>${it.account_nm}</td>
+            <td class="num">${fmt(it.thstrm_amount)}</td>
+            <td class="num">${fmt(it.frmtrm_amount)}</td>
+            <td class="num">${fmt(it.bfefrmtrm_amount)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px;">※ 금액 단위: 원</p>
+  `;
+}
+
+function renderShareholdersControls(panel) {
+  panel.innerHTML = `
+    <div class="panel-controls">
+      ${yearSelect("sYear")} ${reportTypeSelect("sReport")}
+      <button onclick="fetchShareholders()">조회</button>
+    </div>
+    <div id="sBody"><div class="empty">조회 버튼을 눌러주세요.</div></div>
+  `;
+}
+
+async function fetchShareholders() {
+  const body = $("sBody");
+  body.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const params = new URLSearchParams({ year: $("sYear").value, report_type: $("sReport").value });
+  const r = await fetch(`/api/shareholders/${currentCorp.corp_code}?${params}`);
+  const d = await r.json();
+  if (d.error) { body.innerHTML = `<div class="error">${d.error}</div>`; return; }
+  const items = d.list || [];
+  if (!items.length) { body.innerHTML = '<div class="empty">최대주주 정보가 없습니다.</div>'; return; }
+  body.innerHTML = `
+    <table>
+      <thead><tr><th>성명</th><th>관계</th><th>주식종류</th><th class="num">기말 보유주식수</th><th class="num">기말 지분율(%)</th></tr></thead>
+      <tbody>
+        ${items.map(it => `
+          <tr>
+            <td>${it.nm || "-"}</td>
+            <td>${it.relate || "-"}</td>
+            <td>${it.stock_knd || "-"}</td>
+            <td class="num">${it.trmend_posesn_stock_co || "-"}</td>
+            <td class="num">${it.trmend_posesn_stock_qota_rt || "-"}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderExecutivesControls(panel) {
+  panel.innerHTML = `
+    <div class="panel-controls">
+      ${yearSelect("eYear")} ${reportTypeSelect("eReport")}
+      <button onclick="fetchExecutives()">조회</button>
+    </div>
+    <div id="eBody"><div class="empty">조회 버튼을 눌러주세요.</div></div>
+  `;
+}
+
+async function fetchExecutives() {
+  const body = $("eBody");
+  body.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const params = new URLSearchParams({ year: $("eYear").value, report_type: $("eReport").value });
+  const r = await fetch(`/api/executives/${currentCorp.corp_code}?${params}`);
+  const d = await r.json();
+  if (d.error) { body.innerHTML = `<div class="error">${d.error}</div>`; return; }
+  const items = d.list || [];
+  if (!items.length) { body.innerHTML = '<div class="empty">임원 정보가 없습니다.</div>'; return; }
+  body.innerHTML = `
+    <table>
+      <thead><tr><th>성명</th><th>성별</th><th>직위</th><th>등기임원</th><th>상근</th><th>담당업무</th><th>재직기간</th></tr></thead>
+      <tbody>
+        ${items.map(it => `
+          <tr>
+            <td>${it.nm || "-"}</td>
+            <td>${it.sexdstn || "-"}</td>
+            <td>${it.ofcps || "-"}</td>
+            <td>${it.rgist_exctv_at || "-"}</td>
+            <td>${it.fte_at || "-"}</td>
+            <td>${it.chrg_job || "-"}</td>
+            <td>${it.hffc_pd || "-"}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function ymd(d) {
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+}
+function dateInput(s) {
+  return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+}
+</script>
+</body>
+</html>
